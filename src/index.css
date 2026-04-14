@@ -1,0 +1,27 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(248, 180, 0, 0.18), transparent 30%),
+    radial-gradient(circle at 85% 5%, rgba(0, 153, 153, 0.18), transparent 30%),
+    linear-gradient(140deg, #f7f7f2 0%, #eff7f5 55%, #fef9ef 100%);
+  min-height: 100vh;
+  color: #1e2a2f;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+#root {
+  min-height: 100vh;
+}
