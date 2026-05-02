@@ -76,6 +76,15 @@
   border: 1px solid #ffc7be;
 }
 
+.success-message {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 12px;
+  color: #0b5f40;
+  background: #e4f9ef;
+  border: 1px solid #bfe9d5;
+}
+
 .auth-card .btn-primary {
   width: 100%;
   margin-top: 6px;
@@ -117,5 +126,27 @@
 }
 
 .auth-toggle button:hover {
+  color: #0a5f66;
+}
+
+.auth-help {
+  margin-top: 12px;
+  text-align: right;
+}
+
+.auth-help + .auth-help {
+  margin-top: 6px;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #0f7f86;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.link-button:hover {
   color: #0a5f66;
 }

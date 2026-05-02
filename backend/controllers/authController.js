@@ -14,6 +14,7 @@ const generateToken = (id) => {
 exports.register = async (req, res) => {
   try {
     const { name, email, password, confirmPassword } = req.body;
+    const normalizedEmail = email?.trim().toLowerCase();
 
     // Validate required fields
     if (!name || !email || !password || !confirmPassword) {
@@ -26,15 +27,15 @@ exports.register = async (req, res) => {
     }
 
     // Check if user already exists
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ email: normalizedEmail });
     if (user) {
       return res.status(400).json({ message: 'यह ईमेल पहले से उपयोग में है (Email already in use)' });
     }
 
     // Create user
     user = await User.create({
-      name,
-      email,
+      name: name.trim(),
+      email: normalizedEmail,
       password,
     });
 
@@ -60,6 +61,7 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = email?.trim().toLowerCase();
 
     // Validate required fields
     if (!email || !password) {
@@ -67,7 +69,7 @@ exports.login = async (req, res) => {
     }
 
     // Check for user
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
     if (!user) {
       return res.status(401).json({ message: 'अमान्य क्रेडेंशियल (Invalid credentials)' });
     }
@@ -92,6 +94,52 @@ exports.login = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+};
+
+const resetPasswordDirect = async (req, res) => {
+  try {
+    const { email, newPassword, confirmPassword } = req.body;
+    const normalizedEmail = email?.trim().toLowerCase();
+
+    if (!email || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: 'कृपया ईमेल, नया पासवर्ड और confirm password भरें (Please fill email, new password and confirm password)' });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'पासवर्ड मेल नहीं खा रहे (Passwords do not match)' });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
+    if (!user) {
+      return res.status(404).json({ message: 'इस ईमेल से कोई अकाउंट नहीं मिला (No account found for this email)' });
+    }
+
+    user.password = newPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'पासवर्ड सफलतापूर्वक बदल दिया गया (Password reset successfully)',
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Reset password directly using email
+// @route   POST /api/auth/forgot-password
+// @access  Public
+exports.forgotPassword = async (req, res) => {
+  return resetPasswordDirect(req, res);
+};
+
+// @desc    Reset password directly using email
+// @route   POST /api/auth/reset-password
+// @access  Public
+exports.resetPassword = async (req, res) => {
+  return resetPasswordDirect(req, res);
 };
 
 // @desc    Get current logged in user
