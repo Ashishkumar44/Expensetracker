@@ -69,6 +69,11 @@ A comprehensive React.js based expense tracking application with advanced featur
 - Node.js (v14 or higher)
 - npm or yarn
 
+### Deployment Model
+- The Vercel deployment is client-only and uses `localStorage` for auth and data persistence.
+- MongoDB is not required for the deployed app.
+- The `backend/` folder is kept for reference and local experimentation only.
+
 ### Installation
 
 1. Navigate to the project directory:
@@ -87,6 +92,10 @@ npm start
 ```
 
 4. Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+
+### Optional Legacy Backend
+- If you want to run the old Express/Mongo backend locally, use the `backend/` folder separately.
+- That path requires a valid `MONGODB_URI`, but it is not needed for the deployed build.
 
 ## 📱 Usage
 

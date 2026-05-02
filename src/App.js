@@ -10,20 +10,17 @@ import CategoryManager from './components/CategoryManager';
 import Analytics from './components/Analytics';
 import WalletManager from './components/WalletManager';
 import { exportToCSV, exportToJSON } from './utils/exportUtils';
-import { expenseAPI, incomeAPI, walletAPI, authAPI } from './services/api';
-
-const DEFAULT_CATEGORIES = [
-  'Food & Dining',
-  'Transportation',
-  'Shopping',
-  'Entertainment',
-  'Bills & Utilities',
-  'Healthcare',
-  'Education',
-  'Travel',
-  'Groceries',
-  'Others'
-];
+import {
+  DEFAULT_CATEGORIES,
+  clearCurrentLocalUser,
+  createEmptyWorkspace,
+  getCurrentLocalUser,
+  getWorkspaceData,
+  resetWorkspaceData,
+  saveWorkspaceData,
+  setCurrentLocalUser,
+  updateLocalUserProfile,
+} from './utils/clientStorage';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -55,16 +52,33 @@ function App() {
     return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   };
 
-  // Check if user is logged in on mount
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    
-    if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
-      fetchUserData();
+    const savedUser = getCurrentLocalUser();
+
+    if (savedUser) {
+      setUser(savedUser);
+      const workspace = getWorkspaceData(savedUser.id);
+      setExpenses(workspace.expenses);
+      setCategories(workspace.categories);
+      setBudgets(workspace.budgets);
+      setWallet(workspace.wallet);
+      setIncome(workspace.income);
     }
+
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    saveWorkspaceData(user.id, {
+      expenses,
+      categories,
+      budgets,
+      wallet,
+      income,
+    });
+  }, [user, expenses, categories, budgets, wallet, income]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -107,58 +121,54 @@ function App() {
     };
   }, [isProfileModalOpen]);
 
-  // Fetch user data from backend
-  const fetchUserData = async () => {
-    try {
-      setLoading(true);
-      const [expensesRes, incomeRes, walletRes] = await Promise.all([
-        expenseAPI.getExpenses(),
-        incomeAPI.getIncome(),
-        walletAPI.getWallet(),
-      ]);
-
-      setExpenses(expensesRes.data.data || []);
-      setIncome(incomeRes.data.data || []);
-      setWallet(walletRes.data.data || { amount: 0, month: '', setDate: '' });
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
-    }
+  const loadWorkspaceForUser = (userData) => {
+    setLoading(true);
+    const workspace = getWorkspaceData(userData.id);
+    setExpenses(workspace.expenses);
+    setCategories(workspace.categories);
+    setBudgets(workspace.budgets);
+    setWallet(workspace.wallet);
+    setIncome(workspace.income);
+    setLoading(false);
   };
 
   const handleLoginSuccess = (userData) => {
+    setCurrentLocalUser(userData);
+    setLoading(true);
     setUser(userData);
-    fetchUserData();
+    loadWorkspaceForUser(userData);
   };
 
   const handleLogout = () => {
     setIsProfileMenuOpen(false);
     setIsProfileModalOpen(false);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearCurrentLocalUser();
     setUser(null);
-    setExpenses([]);
-    setIncome([]);
-    setWallet({ amount: 0, month: '', setDate: '' });
+    const emptyWorkspace = createEmptyWorkspace();
+    setExpenses(emptyWorkspace.expenses);
+    setCategories(emptyWorkspace.categories);
+    setBudgets(emptyWorkspace.budgets);
+    setWallet(emptyWorkspace.wallet);
+    setIncome(emptyWorkspace.income);
   };
 
   const addExpense = async (expense) => {
     try {
       if (editingExpense) {
-        await expenseAPI.updateExpense(editingExpense._id || editingExpense.id, {
-          amount: expense.amount,
-          description: expense.description,
-          category: expense.category,
-          date: expense.date,
-          paymentMethod: expense.paymentMethod,
-        });
+        const editingId = editingExpense._id || editingExpense.id;
+        setExpenses(expenses.map((item) => (
+          (item._id || item.id) === editingId
+            ? { ...item, ...expense, id: item.id || editingId }
+            : item
+        )));
         setEditingExpense(null);
       } else {
-        const response = await expenseAPI.addExpense(expense);
-        setExpenses([...expenses, response.data.data]);
+        const nextExpense = {
+          ...expense,
+          id: expense.id || Date.now(),
+        };
+        setExpenses([...expenses, nextExpense]);
       }
-      fetchUserData();
     } catch (error) {
       alert('Error adding expense: ' + error.message);
     }
@@ -167,7 +177,6 @@ function App() {
   const deleteExpense = async (id) => {
     if (window.confirm('Are you sure?')) {
       try {
-        await expenseAPI.deleteExpense(id);
         setExpenses(expenses.filter(exp => (exp._id || exp.id) !== id));
       } catch (error) {
         alert('Error deleting expense: ' + error.message);
@@ -178,7 +187,6 @@ function App() {
   const clearAllExpenses = async () => {
     if (window.confirm('Clear all expenses? This action cannot be undone.')) {
       try {
-        await expenseAPI.clearExpenses();
         setExpenses([]);
         alert('All expenses cleared successfully!');
       } catch (error) {
@@ -223,14 +231,12 @@ function App() {
     try {
       const currentDate = new Date();
       const monthYear = `${currentDate.getMonth()}-${currentDate.getFullYear()}`;
-      
-      const response = await walletAPI.setWallet({
+
+      setWallet({
         amount: walletData.amount,
         month: monthYear,
-        description: walletData.description,
+        setDate: walletData.setDate || new Date().toISOString(),
       });
-      
-      setWallet(response.data.data);
       alert('Wallet set successfully!');
     } catch (error) {
       alert('Error setting wallet: ' + error.message);
@@ -239,14 +245,15 @@ function App() {
 
   const addIncome = async (incomeData) => {
     try {
-      const response = await incomeAPI.addIncome({
+      const nextIncome = {
         amount: incomeData.amount,
         description: incomeData.description,
         source: incomeData.source,
         date: incomeData.date,
-      });
-      
-      setIncome([...income, response.data.data]);
+        id: incomeData.id || Date.now(),
+      };
+
+      setIncome([...income, nextIncome]);
       alert('Income added successfully!');
     } catch (error) {
       alert('Error adding income: ' + error.message);
@@ -275,11 +282,16 @@ function App() {
 
   const clearAllData = () => {
     if (window.confirm('Are you sure you want to clear all data?')) {
-      setExpenses([]);
-      setBudgets({});
-      setCategories(DEFAULT_CATEGORIES);
-      setWallet({ amount: 0, month: '', setDate: '' });
-      setIncome([]);
+      const resetData = createEmptyWorkspace();
+      setExpenses(resetData.expenses);
+      setBudgets(resetData.budgets);
+      setCategories(resetData.categories);
+      setWallet(resetData.wallet);
+      setIncome(resetData.income);
+
+      if (user?.id) {
+        resetWorkspaceData(user.id);
+      }
     }
   };
 
@@ -313,24 +325,17 @@ function App() {
 
       try {
         setIsSavingProfile(true);
-        const response = await authAPI.updateProfile({
+        const updatedUser = updateLocalUserProfile({
+          userId: user.id,
           name: trimmedName,
           email: trimmedEmail,
         });
 
-        const payload = response?.data?.data || {};
-        const updatedUser = {
-          ...user,
-          name: payload.name || trimmedName,
-          email: payload.email || trimmedEmail,
-        };
-
         setUser(updatedUser);
-        localStorage.setItem('user', JSON.stringify(updatedUser));
         setIsProfileModalOpen(false);
         alert('Profile updated successfully!');
       } catch (error) {
-        const message = error?.response?.data?.message || 'Failed to update profile.';
+        const message = error?.message || 'Failed to update profile.';
         alert(message);
       } finally {
         setIsSavingProfile(false);
